@@ -14,39 +14,52 @@ import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSenderImpl;  
 import org.springframework.mail.javamail.MimeMessageHelper;  
   
-public class GroupMail implements Runnable {  
-	private static final int TO_MAIL_ADDR = 0;
-	private static final int TO_NAME = 1;
-	private static final int SUBJECT = 2;
-	private static final int TEXT = 3;
-	private static final int INLINE = 4;
-	private static final int ATTACHMENT = 5;
-	
+public class GroupMail {  
+	protected static final int TO_MAIL_ADDR = 0;
+	protected static final int TO_NAME = 1;
+	protected static final int SUBJECT = 2;
+	protected static final int TEXT = 3;
+	protected static final int INLINE = 4;
+	protected static final int ATTACHMENT = 5;
+
 	private String smtpServer;
 	private int smtpPort;
 	private boolean smtpTls;
 	private String fromMailAddr;
 	private String fromMailPassword;
-	private String mailsFilename;
-	private String fromName;
-	private String encoding;
+	private JavaMailSenderImpl mailSender;
 
 	public GroupMail(String smtpServer, int smtpPort, boolean smtpTls, String fromMailAddr,
-			String fromMailPassword, String mailsFilename, String fromName, String encoding) {
+			String fromMailPassword) {
 		
 		this.smtpServer = smtpServer;
 		this.smtpPort = smtpPort;
 		this.smtpTls = smtpTls;
 		this.fromMailAddr = fromMailAddr;
 		this.fromMailPassword = fromMailPassword;
-		this.fromName = fromName;
-		this.mailsFilename = mailsFilename;
-		this.encoding = encoding;
 		
+		// 发送器  
+		this.mailSender = new JavaMailSenderImpl();
+		mailSender.setHost(smtpServer);  
+		mailSender.setPort(smtpPort);
+		mailSender.setUsername(fromMailAddr);
+		mailSender.setPassword(fromMailPassword);
+		mailSender.setDefaultEncoding("UTF-8");
+		
+		// 配置文件对象  
+		Properties mailProps = new Properties();
+		if (fromMailPassword != null) {
+			mailProps.put("mail.smtp.auth", "true"); // 是否进行验证
+		}
+		if (smtpTls) {
+			mailProps.put("mail.smtp.starttls.enable", "true"); // 使用TLS
+		}
+
+		Session mailSession = Session.getInstance(mailProps);  
+		mailSender.setSession(mailSession); // 为发送器指定会话
 	}
 
-	public void send(JavaMailSenderImpl mailSender, 
-			String fromMailAddr, String fromName, 
+	public void send(String fromMailAddr, String fromName, 
 			String toMailAddr, String toName, 
 			String subject, String text,
 			String[] inlineImages, String[] attechments) throws MessagingException {
@@ -80,100 +93,28 @@ public class GroupMail implements Runnable {
 		 
 	}
 
-	public void run() {
+	public void send(String mailsFilename, String fromName, String encoding) {
 		try {
 			  
-			// 发送器  
-			JavaMailSenderImpl mailSender = new JavaMailSenderImpl();
-			mailSender.setHost(smtpServer);  
-			mailSender.setPort(smtpPort);
-			mailSender.setUsername(fromMailAddr);
-			mailSender.setPassword(fromMailPassword);
-			mailSender.setDefaultEncoding("UTF-8");
-			
-			// 配置文件对象  
-			Properties mailProps = new Properties();
-			if (fromMailPassword != null) {
-				mailProps.put("mail.smtp.auth", "true"); // 是否进行验证
-			}
-			if (smtpTls) {
-				mailProps.put("mail.smtp.starttls.enable", "true"); // 使用TLS
-			}
-
-			Session session = Session.getInstance(mailProps);  
-			mailSender.setSession(session); // 为发送器指定会话
-			
 			BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(mailsFilename), encoding));
-			String line = reader.readLine();
-			for (;(line = reader.readLine()) != null;) {
+			String line = reader.readLine(); // Skip the first line (header title) of csv
+			while ((line = reader.readLine()) != null) {
 				String[] mail = line.split(",");
 				String toName;
 				String toMailAddr;
-				send(mailSender, 
-						fromMailAddr, 
-						fromName,  
-						toMailAddr = mail[TO_MAIL_ADDR],
-						toName = mail[TO_NAME], 
-						mail[SUBJECT],
-						mail[TEXT],
-						mail.length <= INLINE ? new String[] {} : mail[INLINE].split(":"), 
-						mail.length <= ATTACHMENT ? new String[] {} : mail[ATTACHMENT].split(":"));
-		        System.out.println(toName + " " + toMailAddr + " 邮件发送成功");
+				send(fromMailAddr, 
+					fromName,  
+					toMailAddr = mail[TO_MAIL_ADDR],
+					toName = mail[TO_NAME], 
+					mail[SUBJECT],
+					mail[TEXT],
+					mail.length <= INLINE ? new String[] {} : mail[INLINE].split(":"), 
+					mail.length <= ATTACHMENT ? new String[] {} : mail[ATTACHMENT].split(":"));
 			}
+			reader.close();
 		  
 		} catch (Throwable t) {
 			throw new RuntimeException(t);
 		}
 	}
-	
-	private static void printUsage() {
-		System.err.println("Options: "
-				+ "  --smtp:<smtp server>[:<smtp port(25)>] [--tls:<true|false>] \n"
-				+ "  [--from:<your email address> --pass:<your email password>] \n"
-				+ "  [--mails:<mails file (mails.csv)> [--encoding:<the encoding of mails file>]]\n"
-				+ "The format of mails.csv(the 1st line is title, will not be proceed as mail) Ex:\n"
-				+ "  <To Mail Address>, <To Name>, <Subject>, <Text>\n"
-				+ "  tomail@domain.com, your name, subject, email");
-	}
-
-	public static void main(String[] args) {
-		String smtpServer = null;
-		int smtpPort = 25;
-		boolean smtpTls = false;
-		String fromMailAddr = null;
-		String fromMailPassword = null;
-		String mailsFilename = "mails.csv";
-		String fromName = "";
-		String encoding = System.getProperty("sun.jnu.encoding");
-		
-		for (String arg:args) {
-			if (arg.startsWith("--smtp:")) {
-				String[] smtpArgs = arg.split(":");
-				smtpServer = smtpArgs[1];
-				if (smtpArgs.length >= 3) {
-					smtpPort = Integer.parseInt(smtpArgs[2]);
-					if (smtpPort == 587 || smtpPort == 465) {
-						smtpTls = true;
-					}
-				}
-			} else if (arg.startsWith("--tls:")) {
-				smtpTls = Boolean.parseBoolean(arg.split(":")[1]);
-			} else if (arg.startsWith("--from:")) {
-				fromMailAddr = arg.split(":")[1];
-			} else if (arg.startsWith("--pass:")) {
-				fromMailPassword = arg.split(":")[1];
-			} else if (arg.startsWith("--mails:")) {
-				mailsFilename = arg.split(":")[1];
-			} else if (arg.startsWith("--encoding:")) {
-				encoding = arg.split(":")[1];
-			} 
-		}
-		
-		if (smtpServer == null) {
-			printUsage();
-			System.exit(-1);
-		}
-		
-		new GroupMail(smtpServer, smtpPort, smtpTls, fromMailAddr, fromMailPassword, mailsFilename, fromName, encoding).run();
-    }
 }
