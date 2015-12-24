@@ -24,9 +24,9 @@ public class GroupMail {
 	private static final int TO_MAIL_ADDR = 0;
 	private static final int CC_MAIL_ADDR = 1;
 	private static final int BCC_MAIL_ADDR = 2;
-	private static final int SUBJECT = 3;
-	private static final int INLINE = 4;
-	private static final int ATTACHMENT = 5;
+	private static final int INLINE = 3;
+	private static final int ATTACHMENT = 4;
+	private static final int SUBJECT = 5;
 	private static final int TEXT = 6;
 
 	private JavaMailSenderImpl mailSender;
@@ -65,13 +65,13 @@ public class GroupMail {
 			MimeMessage mail = mailSender.createMimeMessage(); // 复杂邮件
 			MimeMessageHelper helper = new MimeMessageHelper(mail, true);  
 			helper.setFrom(fromMailAddr); // 来自  
-			for (String mailAddr:toMailAddrs) { 
+			if (toMailAddrs != null) for (String mailAddr:toMailAddrs) if (!mailAddr.equals("")){ 
 				helper.addTo(mailAddr); // TO邮件地址
 			}
-			for (String mailAddr:ccMailAddrs) { 
+			if (ccMailAddrs != null) for (String mailAddr:ccMailAddrs) if (!mailAddr.equals("")){ 
 				helper.addCc(mailAddr); // CC邮件地址
 			}
-			for (String mailAddr:bccMailAddrs) { 
+			if (ccMailAddrs != null) for (String mailAddr:bccMailAddrs) if (!mailAddr.equals("")){ 
 				helper.addBcc(mailAddr); // BCC邮件地址
 			}
 			helper.setSubject(subject); // 标题  
@@ -104,12 +104,12 @@ public class GroupMail {
 		}
 	}
 
-	public void send(String mailsFilename, String encoding, String fromMailAddr, String text) throws MailException {
+	public int send(String mailsFilename, String encoding, String fromMailAddr, String text) throws MailException {
+		int i = 0;
 		try {
-			  
 			BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(mailsFilename), encoding));
 			String line = reader.readLine(); // Skip the first line (header title) of csv
-			while ((line = reader.readLine()) != null) {
+			for (i = 0; (line = reader.readLine()) != null; i ++) {
 				String[] mail = line.split(",");
 				send(fromMailAddr, 
 					mail[TO_MAIL_ADDR].split(";"),
@@ -128,6 +128,6 @@ public class GroupMail {
 		} catch(IOException e) {
 			throw new MailException(e, mailsFilename);
 		}
-		  
+		return i;
 	}
 }

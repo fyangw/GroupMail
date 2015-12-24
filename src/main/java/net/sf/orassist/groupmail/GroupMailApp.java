@@ -17,8 +17,8 @@ public class GroupMailApp {
 				+ "  [--encoding:<the encoding of input mails file or mail text>]\n"
 				+ "  [--subject:<subject> --text:<mail text file, - for console input>]\n"
 				+ "The format of mails.csv(the 1st line is title, will not be proceed as mail) Ex:\n"
-				+ "  <To mail address>, <To name>, <Inline images>, <Attachments>, <Subject>, <Text(HTML)> \n"
-				+ "  a@a.com;b@b.com, Recipient, a.jpg;b.jpg;c.jpg, a.doc;b.ppt;c.zip, Subject, Email text ");
+				+ "  <To mail addr>, <Cc mail addr>, <Bcc mail addr>, <Inline images>, <Attachments>, <Subject>, <Text(HTML)> \n"
+				+ "  a@a.com;b@b.com, a@a.com;b@b.com, a@a.com;b@b.com, a.jpg;b.jpg;c.jpg, a.doc;b.ppt;c.zip, Subject, Email text ");
 	}
 
 	public static void main(String[] args) throws MailException, IOException {
@@ -89,11 +89,13 @@ public class GroupMailApp {
 		}
 		
 		GroupMail groupMail = new GroupMail(smtpServer, smtpPort, smtpTls, fromMailAddr, fromMailPassword);
+		int sentCount = 0;
 		if (toMailAddrs != null) {
 			groupMail.send(fromMailAddr, toMailAddrs, ccMailAddrs, bccMailAddrs, subject, text, inlineImages, attachments);
+			sentCount = 1;
 		} else {
-			groupMail.send(mailsFilename, encoding, fromMailAddr, text);
+			sentCount = groupMail.send(mailsFilename, encoding, fromMailAddr, text);
 		}
-		
+		System.out.println("Sent " + sentCount);
 	}
 }
