@@ -3,31 +3,34 @@ package net.sf.orassist.groupmail;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.UnsupportedEncodingException;
+import java.util.Arrays;
 import java.util.Properties;
 
 import javax.mail.MessagingException;
 import javax.mail.Session;  
 import javax.mail.internet.MimeMessage;  
+
+import org.apache.commons.lang.StringUtils;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSenderImpl;  
 import org.springframework.mail.javamail.MimeMessageHelper;  
   
 public class GroupMail {  
-	protected static final int TO_MAIL_ADDR = 0;
-	protected static final int TO_NAME = 1;
-	protected static final int SUBJECT = 2;
-	protected static final int TEXT = 3;
-	protected static final int INLINE = 4;
-	protected static final int ATTACHMENT = 5;
+	private static final int TO_MAIL_ADDR = 0;
+	private static final int CC_MAIL_ADDR = 1;
+	private static final int BCC_MAIL_ADDR = 2;
+	private static final int SUBJECT = 3;
+	private static final int INLINE = 4;
+	private static final int ATTACHMENT = 5;
+	private static final int TEXT = 6;
 
 	private JavaMailSenderImpl mailSender;
 	
-	public GroupMail(String smtpServer, int smtpPort, boolean smtpTls) {
-		this(smtpServer, smtpPort, smtpTls, null, null);
-	}
-
 	public GroupMail(String smtpServer, int smtpPort, boolean smtpTls, String fromMailAddr,
 			String fromMailPassword) {
 		
@@ -52,8 +55,8 @@ public class GroupMail {
 		mailSender.setSession(mailSession); // 为发送器指定会话
 	}
 
-	public void send(String fromMailAddr, String fromName, 
-			String toMailAddr, String toName, 
+	public void send(String fromMailAddr, 
+			String[] toMailAddrs, String[] ccMailAddrs, String[] bccMailAddrs,
 			String subject, String text,
 			String[] inlineImages, String[] attechments) throws MailException {
 		
@@ -62,37 +65,46 @@ public class GroupMail {
 			MimeMessage mail = mailSender.createMimeMessage(); // 复杂邮件
 			MimeMessageHelper helper = new MimeMessageHelper(mail, true);  
 			helper.setFrom(fromMailAddr); // 来自  
-			helper.setTo(toMailAddr); // 发送到邮件地址  
+			for (String mailAddr:toMailAddrs) { 
+				helper.addTo(mailAddr); // TO邮件地址
+			}
+			for (String mailAddr:ccMailAddrs) { 
+				helper.addCc(mailAddr); // CC邮件地址
+			}
+			for (String mailAddr:bccMailAddrs) { 
+				helper.addBcc(mailAddr); // BCC邮件地址
+			}
 			helper.setSubject(subject); // 标题  
-			// 邮件内容，第二个参数指定发送的是HTML格式  
-			helper.setText(text, true);  
+			helper.setText(text, true); // 邮件内容，第二个参数指定发送的是HTML格式  
 			// 增加CID内容  
 			if (inlineImages != null) {
-				for (String inlineImage : inlineImages) {
-					if (inlineImage.length() > 0) {
-						helper.addInline(inlineImage, new File(inlineImage));
-					}
+				for (String inlineImage : inlineImages)	if (inlineImage.length() > 0) {
+					helper.addInline(inlineImage, new File(inlineImage));
 				}
 			}
 			// 增加附件  
 			if (attechments != null) {
-				for (String attachment : attechments) {
-					if (attachment.length() > 0) {
-						helper.addAttachment(attachment, new File(attachment));
-					}
+				for (String attachment : attechments) if (attachment.length() > 0) {
+					helper.addAttachment(attachment, new File(attachment));
 				}
 			}
 			  
 			mailSender.send(mail); // 发送  
 		 
 		} catch (Throwable t) {
-			throw new MailException(t, "Error occured when send: " + toMailAddr + " <" + toMailAddr + ">");
+			throw new MailException(t, "Error occured when send"
+					+ " from:" + fromMailAddr
+					+ " to:" + StringUtils.join((toMailAddrs), ";")
+					+ " cc:" + StringUtils.join((ccMailAddrs), ";")
+					+ " bcc:" + StringUtils.join((bccMailAddrs), ";")
+					+ " subject:" + subject
+					+ " text:" + text
+					+ " inlines:" + StringUtils.join(inlineImages)
+					+ " attachments:" + StringUtils.join(inlineImages));
 		}
 	}
 
-	public void send(String mailsFilename, String fromMailAddr, String fromName, String encoding) throws MailException {
-		String toName = "";
-		String toMailAddr = "";
+	public void send(String mailsFilename, String encoding, String fromMailAddr, String text) throws MailException {
 		try {
 			  
 			BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(mailsFilename), encoding));
@@ -100,18 +112,22 @@ public class GroupMail {
 			while ((line = reader.readLine()) != null) {
 				String[] mail = line.split(",");
 				send(fromMailAddr, 
-					fromName,  
-					toMailAddr = mail[TO_MAIL_ADDR],
-					toName = mail[TO_NAME], 
+					mail[TO_MAIL_ADDR].split(";"),
+					mail[CC_MAIL_ADDR].split(";"),
+					mail[BCC_MAIL_ADDR].split(";"),
 					mail[SUBJECT],
-					mail[TEXT],
+					text != null ? text : mail[TEXT],
 					mail.length <= INLINE ? new String[] {} : mail[INLINE].split(":"), 
 					mail.length <= ATTACHMENT ? new String[] {} : mail[ATTACHMENT].split(":"));
 			}
 			reader.close();
-		  
-		} catch (Throwable t) {
-			throw new MailException(t, "Error occured when send: " + toMailAddr + " <" + toMailAddr + ">");
+		} catch(UnsupportedEncodingException e) {
+			throw new MailException(e, mailsFilename);
+		} catch(FileNotFoundException e) {
+			throw new MailException(e, mailsFilename);
+		} catch(IOException e) {
+			throw new MailException(e, mailsFilename);
 		}
+		  
 	}
 }
