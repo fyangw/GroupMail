@@ -12,7 +12,7 @@ public class GroupMailApp {
 				+ "  tomail@domain.com, your name, subject, email");
 	}
 
-	public static void main(String[] args) {
+	public static void main(String[] args) throws MailException {
 		String smtpServer = null;
 		int smtpPort = 25;
 		boolean smtpTls = false;
@@ -51,7 +51,7 @@ public class GroupMailApp {
 		}
 		
 		new GroupMail(smtpServer, smtpPort, smtpTls, fromMailAddr, fromMailPassword)
-		.send(mailsFilename, fromName, encoding);
+		.send(mailsFilename, fromMailAddr, fromName, encoding);
 	}
 
 }

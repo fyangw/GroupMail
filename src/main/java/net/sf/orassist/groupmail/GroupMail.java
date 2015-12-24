@@ -22,24 +22,17 @@ public class GroupMail {
 	protected static final int INLINE = 4;
 	protected static final int ATTACHMENT = 5;
 
-	private String smtpServer;
-	private int smtpPort;
-	private boolean smtpTls;
-	private String fromMailAddr;
-	private String fromMailPassword;
 	private JavaMailSenderImpl mailSender;
+	
+	public GroupMail(String smtpServer, int smtpPort, boolean smtpTls) {
+		this(smtpServer, smtpPort, smtpTls, null, null);
+	}
 
 	public GroupMail(String smtpServer, int smtpPort, boolean smtpTls, String fromMailAddr,
 			String fromMailPassword) {
 		
-		this.smtpServer = smtpServer;
-		this.smtpPort = smtpPort;
-		this.smtpTls = smtpTls;
-		this.fromMailAddr = fromMailAddr;
-		this.fromMailPassword = fromMailPassword;
-		
 		// 发送器  
-		this.mailSender = new JavaMailSenderImpl();
+		mailSender = new JavaMailSenderImpl();
 		mailSender.setHost(smtpServer);  
 		mailSender.setPort(smtpPort);
 		mailSender.setUsername(fromMailAddr);
@@ -62,46 +55,50 @@ public class GroupMail {
 	public void send(String fromMailAddr, String fromName, 
 			String toMailAddr, String toName, 
 			String subject, String text,
-			String[] inlineImages, String[] attechments) throws MessagingException {
+			String[] inlineImages, String[] attechments) throws MailException {
 		
-		//SimpleMailMessage mail = new SimpleMailMessage(); // 简单邮件
-		MimeMessage mail = mailSender.createMimeMessage(); // 复杂邮件
-		MimeMessageHelper helper = new MimeMessageHelper(mail, true);  
-		helper.setFrom(fromMailAddr); // 来自  
-		helper.setTo(toMailAddr); // 发送到邮件地址  
-		helper.setSubject(subject); // 标题  
-		// 邮件内容，第二个参数指定发送的是HTML格式  
-		helper.setText(text, true);  
-		// 增加CID内容  
-		if (inlineImages != null) {
-			for (String inlineImage : inlineImages) {
-				if (inlineImage.length() > 0) {
-					helper.addInline(inlineImage, new File(inlineImage));
+		try {
+			//SimpleMailMessage mail = new SimpleMailMessage(); // 简单邮件
+			MimeMessage mail = mailSender.createMimeMessage(); // 复杂邮件
+			MimeMessageHelper helper = new MimeMessageHelper(mail, true);  
+			helper.setFrom(fromMailAddr); // 来自  
+			helper.setTo(toMailAddr); // 发送到邮件地址  
+			helper.setSubject(subject); // 标题  
+			// 邮件内容，第二个参数指定发送的是HTML格式  
+			helper.setText(text, true);  
+			// 增加CID内容  
+			if (inlineImages != null) {
+				for (String inlineImage : inlineImages) {
+					if (inlineImage.length() > 0) {
+						helper.addInline(inlineImage, new File(inlineImage));
+					}
 				}
 			}
-		}
-		// 增加附件  
-		if (attechments != null) {
-			for (String attachment : attechments) {
-				if (attachment.length() > 0) {
-					helper.addAttachment(attachment, new File(attachment));
+			// 增加附件  
+			if (attechments != null) {
+				for (String attachment : attechments) {
+					if (attachment.length() > 0) {
+						helper.addAttachment(attachment, new File(attachment));
+					}
 				}
 			}
-		}
-		  
-		mailSender.send(mail); // 发送  
+			  
+			mailSender.send(mail); // 发送  
 		 
+		} catch (Throwable t) {
+			throw new MailException(t, "Error occured when send: " + toMailAddr + " <" + toMailAddr + ">");
+		}
 	}
 
-	public void send(String mailsFilename, String fromName, String encoding) {
+	public void send(String mailsFilename, String fromMailAddr, String fromName, String encoding) throws MailException {
+		String toName = "";
+		String toMailAddr = "";
 		try {
 			  
 			BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(mailsFilename), encoding));
 			String line = reader.readLine(); // Skip the first line (header title) of csv
 			while ((line = reader.readLine()) != null) {
 				String[] mail = line.split(",");
-				String toName;
-				String toMailAddr;
 				send(fromMailAddr, 
 					fromName,  
 					toMailAddr = mail[TO_MAIL_ADDR],
@@ -114,7 +111,7 @@ public class GroupMail {
 			reader.close();
 		  
 		} catch (Throwable t) {
-			throw new RuntimeException(t);
+			throw new MailException(t, "Error occured when send: " + toMailAddr + " <" + toMailAddr + ">");
 		}
 	}
 }
